@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIGEM | Sistema Integral de Gestión de Mesas de Examen</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#eef3f9;color:#1f2937;font-family:Arial,sans-serif}
+a{color:#1c5d9d}
+header.top{background:#173e68;color:#fff;padding:24px max(18px,calc((100% - 1100px)/2));display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}
+header.top h1{margin:0}header.top p{margin:6px 0 0;color:#dce8f5}
+header.top.centro{display:block;text-align:center;padding:28px 18px}
+.wrap{max-width:1100px;margin:22px auto;padding:0 15px}
+.card{background:#fff;border-radius:12px;padding:20px;margin-bottom:18px;box-shadow:0 3px 14px #1322380b}
+.card h2{margin-top:0}
+.box{background:#fff;width:min(420px,calc(100% - 30px));margin:6vh auto;padding:28px;border-radius:14px;box-shadow:0 4px 18px #14253b12}
+.box h1{color:#173e68;margin:0 0 6px}.box h2{margin:0 0 8px}
+.box label{margin:14px 0 6px;font-weight:600;font-size:15px}
+label{display:flex;flex-direction:column;gap:6px;font-size:14px}
+input,select{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;font-size:16px}
+input[type=checkbox]{width:auto}
+button,.btn{display:inline-block;padding:11px 15px;background:#1c5d9d;color:#fff;border:0;border-radius:7px;text-decoration:none;cursor:pointer;font-size:15px;font-family:inherit}
+.box button,.box .btn{display:block;width:100%;margin-top:16px;text-align:center;background:#173e68}
+form.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end}
+form.grid button{align-self:end}
+.ok{background:#ecfdf3;color:#166534;padding:12px;border-radius:8px}
+.err{background:#fff0f0;color:#9b1c1c;padding:12px;border-radius:8px}
+.muted{color:#64748b;font-size:14px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:600px}
+th,td{padding:10px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:14px}
+th{background:#edf3f9}
+nav.accesos{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.nota{width:100px}
+summary{cursor:pointer;color:#1c5d9d}details div{padding:2px 0;font-size:13px}
+.pie{text-align:center;color:#64748b;font-size:13px;padding:10px 16px 34px}
+.nombre-link{background:none;border:0;padding:0;color:#1c5d9d;text-decoration:underline;cursor:pointer;font:inherit;text-align:left}
+.nombre-link:hover{color:#173e68}
+#dlg{border:0;border-radius:12px;padding:22px;width:min(440px,calc(100% - 30px));box-shadow:0 10px 40px #0006}
+#dlg::backdrop{background:#0008}#dlg h3{margin-top:0}
+.dlg-botones{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+.gris{background:#64748b}.peligro{background:#b91c1c}
+.prueba{margin-top:16px;font-size:13px;color:#475569}
+.prueba code{background:#edf3f9;padding:1px 5px;border-radius:4px}
+/* Documentos imprimibles */
+.paper{width:min(800px,calc(100% - 30px));margin:28px auto;background:#fff;padding:42px;border:1px solid #d7dee8;color:#111}
+.paper.acta{width:min(1000px,calc(100% - 30px));padding:38px}
+.paper .top{text-align:center;border-bottom:2px solid #173e68;padding-bottom:18px}
+.paper .top h1{margin:0 0 8px;color:#173e68}
+.paper .details{margin:26px 0;line-height:1.9}
+.paper .row{border-bottom:1px solid #d9e0e8;padding:9px 0}
+.paper .result{font-weight:bold;font-size:18px}
+.paper .signatures{display:flex;justify-content:space-between;gap:35px;margin-top:70px}
+.paper .signatures div{border-top:1px solid #111;width:45%;text-align:center;padding-top:8px;font-size:13px}
+.paper .gridd{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:22px 0}
+.paper .gridd div{padding:8px;border-bottom:1px solid #d9e0e8}
+.paper table{min-width:0}
+.paper th,.paper td{border:1px solid #9ca3af;padding:9px}
+.paper th{background:#eaf0f6}
+.acciones{text-align:center;margin:20px}.acciones .btn,.acciones button{margin:0 5px}
+@page{size:A4;margin:12mm}
+@page acta{size:A4 landscape;margin:10mm}
+.paper.acta{page:acta}
+@media print{body{background:#fff}.paper{width:100%;margin:0;padding:12mm;border:0}.no-print{display:none!important}th{background:#eee!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<dialog id="dlg">
+  <h3 id="dlg-titulo"></h3>
+  <p id="dlg-detalle"></p>
+  <p><strong>Esta acción no se puede deshacer.</strong></p>
+  <div class="dlg-botones">
+    <button type="button" id="dlg-cancelar" class="gris">Cancelar</button>
+    <button type="button" id="dlg-ok" class="peligro">Eliminar definitivamente</button>
+  </div>
+</dialog>
+
+<script>
+(function () {
+'use strict';
+
+/* =====================================================================
+   SIGEM - versión de una sola página (HTML + JavaScript).
+   Reemplaza al servidor PHP y a MySQL: las "tablas" son listas guardadas
+   en el navegador (localStorage). Mantiene los nombres de tablas y campos
+   del sistema original para que sea fácil comparar con el SQL.
+   ===================================================================== */
+
+const NOTA_APROBACION = 6;
+const KEY_DB = 'sigem_db_v1';
+const KEY_SES = 'sigem_sesion_v1';
+
+class Falla extends Error {}   // error "esperado" que se muestra al usuario
+
+/* ---------------------------- utilidades ---------------------------- */
+const h = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
+const p2 = n => String(n).padStart(2, '0');
+const hoy = () => { const d = new Date(); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); };
+const ahora = () => { const d = new Date(); return hoy() + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds()); };
+const fmtDT = s => { const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/.exec(s || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] + ' ' + m[4] + ':' + m[5] : (s || ''); };
+const hora = s => String(s || '').slice(0, 5);
+const nota2 = n => Number(n).toFixed(2);
+const es = (a, b) => String(a).localeCompare(String(b), 'es');
+
+/* SHA-256 en JavaScript puro: las contraseñas se guardan con hash, nunca en texto plano. */
+function sha256(texto) {
+  const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  const bytes = Array.from(new TextEncoder().encode(texto));
+  const bitLen = bytes.length * 8;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  const hi = Math.floor(bitLen / 0x100000000), lo = bitLen >>> 0;
+  for (let i = 3; i >= 0; i--) bytes.push((hi >>> (i * 8)) & 255);
+  for (let i = 3; i >= 0; i--) bytes.push((lo >>> (i * 8)) & 255);
+  let H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+  for (let o = 0; o < bytes.length; o += 64) {
+    const w = new Array(64);
+    for (let i = 0; i < 16; i++) w[i] = (bytes[o+4*i] << 24) | (bytes[o+4*i+1] << 16) | (bytes[o+4*i+2] << 8) | bytes[o+4*i+3];
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i-15], 7) ^ rotr(w[i-15], 18) ^ (w[i-15] >>> 3);
+      const s1 = rotr(w[i-2], 17) ^ rotr(w[i-2], 19) ^ (w[i-2] >>> 10);
+      w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, hh] = H;
+    for (let i = 0; i < 64; i++) {
+      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (hh + S1 + ch + K[i] + w[i]) | 0;
+      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+      const mj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + mj) | 0;
+      hh = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H = [(H[0]+a)|0,(H[1]+b)|0,(H[2]+c)|0,(H[3]+d)|0,(H[4]+e)|0,(H[5]+f)|0,(H[6]+g)|0,(H[7]+hh)|0];
+  }
+  return H.map(x => (x >>> 0).toString(16).padStart(8, '0')).join('');
+}
+const hashClave = clave => 'sha256:' + sha256('sigem|' + clave);
+window.__sigemSha256 = sha256; // solo para pruebas
+
+/* ------------------------- "base de datos" -------------------------- */
+let db = null;
+let sinAlmacenamiento = false;
+
+const CAMPO_ID = {
+  aula: 'id_aula', materia: 'id_materia', docente: 'id_docente', alumno: 'id_alumno',
+  mesa: 'id_mesa', inscripcion: 'id_inscripcion', nota: 'id_nota', usuarios: 'id_usuario',
+  acceso_docente: 'id_acceso', preceptor: 'id_preceptor', registro: 'id_registro'
+};
+
+function crearDatosDeEjemplo() {
+  const d = {
+    aula: [{ id_aula: 1, numero: '4to 1ra', capacidad: 26 }],
+    materia: [
+      [1,'Matemática I'],[2,'Matemática II'],[3,'Matemática III'],[4,'Lengua y Literatura I'],[5,'Lengua y Literatura II'],
+      [6,'Inglés I'],[7,'Inglés II'],[8,'Historia I'],[9,'Historia II'],[10,'Geografía I'],[11,'Geografía II'],
+      [12,'Biología'],[13,'Física'],[14,'Química'],[15,'Introducción a la Informática'],[16,'Programación I'],
+      [17,'Programación II'],[18,'Base de Datos']
+    ].map(x => ({ id_materia: x[0], nombre: x[1] })),
+    correlativa: [[2,1],[3,2],[5,4],[7,6],[9,8],[11,10],[16,15],[17,16],[18,15]]
+      .map(x => ({ id_materia: x[0], id_materia_correlativa: x[1] })),
+    docente: [
+      [1,'Sofía','Martínez','28000101'],[2,'Diego','Ramírez','28000102'],[3,'Valentina','López','28000103'],
+      [4,'Matías','Sosa','28000104'],[5,'Camila','Torres','28000105'],[6,'Nicolás','Acosta','28000106'],
+      [7,'Julieta','Romero','28000107'],[8,'Tomás','Herrera','28000108'],[9,'Milagros','Castro','28000109'],
+      [10,'Facundo','Medina','28000110']
+    ].map(x => ({ id_docente: x[0], nombre: x[1], apellido: x[2], dni: x[3] })),
+    // Alumnos de EJEMPLO (inventados). Los reales se cargan desde el panel de preceptoría.
+    alumno: [
+      [1,'Ana','Pérez','50000001','5to 2da'],[2,'Bruno','Díaz','50000002','7mo 1ra'],
+      [3,'Carla','Suárez','50000003','7mo 1ra'],[4,'Esteban','Ríos','50000004','5to 2da'],
+      [5,'Lola','Giménez','50000005','6to 1ra']
+    ].map(x => ({ id_alumno: x[0], nombre: x[1], apellido: x[2], dni: x[3], curso: x[4] })),
+    preceptor: [
+      [1,'Lucía','Fernández','39000101'],[2,'Marcos','Benítez','39000102'],[3,'Carolina','Gómez','39000103']
+    ].map(x => ({ id_preceptor: x[0], nombre: x[1], apellido: x[2], dni: x[3], usuario: x[1] + ' ' + x[2], pass: hashClave(x[3]) })),
+    mesa: [
+      { id_mesa: 1, fecha: '2026-11-12', horario: '02:50:00', id_aula: 1, id_docente: 5, id_materia: 17 },
+      { id_mesa: 2, fecha: '2026-10-20', horario: '08:00:00', id_aula: 1, id_docente: 7, id_materia: 15 },
+      { id_mesa: 3, fecha: '2026-11-13', horario: '03:20:00', id_aula: 1, id_docente: 6, id_materia: 18 },
+      { id_mesa: 4, fecha: '2026-11-16', horario: '09:00:00', id_aula: 1, id_docente: 1, id_materia: 2 }
+    ],
+    inscripcion: [
+      { id_inscripcion: 1, fecha_inscripcion: '2026-10-10', estado: 'Inscripto', id_alumno: 1, id_mesa: 2 },
+      { id_inscripcion: 2, fecha_inscripcion: '2026-10-10', estado: 'Inscripto', id_alumno: 2, id_mesa: 2 },
+      { id_inscripcion: 3, fecha_inscripcion: '2026-11-02', estado: 'Inscripto', id_alumno: 1, id_mesa: 3 },
+      { id_inscripcion: 4, fecha_inscripcion: '2026-11-02', estado: 'Excepción', id_alumno: 3, id_mesa: 1 }
+    ],
+    nota: [
+      { id_nota: 1, calificacion: 8, fecha: '2026-10-20', id_inscripcion: 1 },
+      { id_nota: 2, calificacion: 4, fecha: '2026-10-20', id_inscripcion: 2 }
+    ],
+    acceso_docente: [], usuarios: [], registro: []
+  };
+  d.docente.forEach(x => d.acceso_docente.push({ id_acceso: x.id_docente, id_docente: x.id_docente, usuario: x.nombre + ' ' + x.apellido, pass: hashClave(x.dni) }));
+  d.alumno.forEach(a => d.usuarios.push({ id_usuario: a.id_alumno, nombre: a.nombre + ' ' + a.apellido, usuario: a.nombre + ' ' + a.apellido, pass: hashClave(a.dni) }));
+  [[1,'2026-10-28 16:55:11'],[2,'2026-10-28 16:55:50'],[2,'2026-10-28 17:00:27'],[1,'2026-10-29 08:10:45'],
+   [3,'2026-10-30 09:02:50'],[1,'2026-11-03 07:45:01'],[3,'2026-11-03 10:20:15']].forEach((x, i) => {
+    const u = d.usuarios.find(u => u.id_usuario === x[0]);
+    d.registro.push({ id_registro: i + 1, id_usuario: x[0], usuario: u.usuario, fecha_hora: x[1] });
+  });
+  d.seq = {};
+  Object.keys(CAMPO_ID).forEach(t => { d.seq[t] = d[t].reduce((m, r) => Math.max(m, r[CAMPO_ID[t]]), 0); });
+  return d;
+}
+
+function guardar() {
+  try { localStorage.setItem(KEY_DB, JSON.stringify(db)); sinAlmacenamiento = false; }
+  catch (e) { sinAlmacenamiento = true; }
+}
+function cargar() {
+  try {
+    const raw = localStorage.getItem(KEY_DB);
+    if (raw) { const x = JSON.parse(raw); if (datosValidos(x)) { db = x; return; } }
+  } catch (e) { /* se usan los datos de ejemplo */ }
+  db = crearDatosDeEjemplo();
+  guardar();
+}
+function datosValidos(x) {
+  return !!x && typeof x === 'object' && typeof x.seq === 'object' && x.seq !== null &&
+    ['aula','materia','correlativa','docente','alumno','preceptor','mesa','inscripcion','nota','acceso_docente','usuarios','registro']
+      .every(t => Array.isArray(x[t]));
+}
+function insertar(tabla, fila) {
+  db.seq[tabla] = (db.seq[tabla] || 0) + 1;
+  fila[CAMPO_ID[tabla]] = db.seq[tabla];
+  db[tabla].push(fila);
+  return fila;
+}
+
+/* ----------------------------- sesión ------------------------------- */
+let ses = null;
+try { ses = JSON.parse(sessionStorage.getItem(KEY_SES) || 'null'); } catch (e) { ses = null; }
+function setSes(s) {
+  ses = s;
+  try { if (s) sessionStorage.setItem(KEY_SES, JSON.stringify(s)); else sessionStorage.removeItem(KEY_SES); } catch (e) { /* solo en memoria */ }
+}
+
+/* ------------------------- consultas / reglas ----------------------- */
+const alumnoPorId = id => db.alumno.find(a => a.id_alumno === id);
+const docentePorId = id => db.docente.find(d => d.id_docente === id);
+const materiaPorId = id => db.materia.find(m => m.id_materia === id);
+const aulaPorId = id => db.aula.find(a => a.id_aula === id);
+const mesaPorId = id => db.mesa.find(m => m.id_mesa === id);
+const nombreAlumno = a => a.nombre + ' ' + a.apellido;
+const porFecha = (a, b) => es(a.fecha + a.horario, b.fecha + b.horario);
+
+function vistaMesa(m) {
+  const ma = materiaPorId(m.id_materia), d = docentePorId(m.id_docente), a = aulaPorId(m.id_aula);
+  return Object.assign({}, m, { materia: ma ? ma.nombre : null, docente: d ? d.apellido + ', ' + d.nombre : null, aula: a ? a.numero : null });
+}
+
+/* Equivale al trigger trg_inscripcion_correlativas y a correlativas.php:
+   devuelve las materias correlativas que el alumno todavía NO aprobó (nota >= 6). */
+function correlativasPendientes(idAlumno, idMateria) {
+  if (!idMateria) return [];
+  return db.correlativa.filter(c => c.id_materia === idMateria).filter(c => {
+    return !db.inscripcion.some(i => {
+      if (i.id_alumno !== idAlumno) return false;
+      const me = mesaPorId(i.id_mesa);
+      if (!me || me.id_materia !== c.id_materia_correlativa) return false;
+      return db.nota.some(n => n.id_inscripcion === i.id_inscripcion && n.calificacion >= NOTA_APROBACION);
+    });
+  }).map(c => materiaPorId(c.id_materia_correlativa).nombre).sort(es);
+}
+
+const resultado = n => n == null ? 'Pendiente' : (n >= NOTA_APROBACION ? 'Aprobado' : 'Desaprobado');
+const notaDe = idInsc => { const n = db.nota.find(x => x.id_inscripcion === idInsc); return n ? n.calificacion : null; };
+
+/* Cuentas (usuarios) que corresponden a un alumno: se vinculan por nombre completo. */
+const cuentasDe = a => db.usuarios.filter(u => norm(u.nombre) === norm(nombreAlumno(a)));
+
+function borrarAlumno(id) {
+  const a = alumnoPorId(id);
+  if (!a) throw new Falla('El alumno ya no existe. Recargá la página.');
+  const nombre = nombreAlumno(a);
+  const insc = db.inscripcion.filter(i => i.id_alumno === id).map(i => i.id_inscripcion);
+  db.nota = db.nota.filter(n => !insc.includes(n.id_inscripcion));
+  db.inscripcion = db.inscripcion.filter(i => i.id_alumno !== id);
+  db.alumno = db.alumno.filter(x => x.id_alumno !== id);
+  // La cuenta se borra solo si ya no queda otro alumno con ese nombre completo.
+  if (!db.alumno.some(x => norm(nombreAlumno(x)) === norm(nombre))) {
+    const ids = db.usuarios.filter(u => norm(u.nombre) === norm(nombre)).map(u => u.id_usuario);
+    db.registro = db.registro.filter(r => !ids.includes(r.id_usuario));
+    db.usuarios = db.usuarios.filter(u => !ids.includes(u.id_usuario));
+  }
+  return 'Alumno eliminado: ' + nombre + '.';
+}
+
+function borrarDocente(id) {
+  const d = docentePorId(id);
+  if (!d) throw new Falla('El docente ya no existe. Recargá la página.');
+  let liberadas = 0;
+  db.mesa.forEach(m => { if (m.id_docente === id) { m.id_docente = null; liberadas++; } });
+  db.acceso_docente = db.acceso_docente.filter(x => x.id_docente !== id);
+  db.docente = db.docente.filter(x => x.id_docente !== id);
+  let t = 'Docente eliminado: ' + d.nombre + ' ' + d.apellido + '.';
+  if (liberadas > 0) t += ' ' + liberadas + (liberadas === 1 ? ' mesa quedó' : ' mesas quedaron') + ' sin docente asignado.';
+  return t;
+}
+
+/* ------------------------- piezas de interfaz ----------------------- */
+let flash = { ok: '', err: '' };
+const tomarFlash = () => { const f = flash; flash = { ok: '', err: '' }; return f; };
+const avisos = f => (f.ok ? '<section class="card"><p class="ok" role="status">' + h(f.ok) + '</p></section>' : '') +
+                    (f.err ? '<section class="card"><p class="err" role="alert">' + h(f.err) + '</p></section>' : '');
+
+const tabla = (cols, filas, vacio) =>
+  '<div class="scroll"><table><thead><tr>' + cols.map(c => '<th>' + h(c) + '</th>').join('') + '</tr></thead><tbody>' +
+  (filas.length ? filas.join('') : '<tr><td colspan="' + cols.length + '">' + h(vacio || 'Sin datos.') + '</td></tr>') +
+  '</tbody></table></div>';
+const fila = (...celdas) => '<tr>' + celdas.map(c => '<td>' + c + '</td>').join('') + '</tr>';
+
+const pie = () => '<p class="pie">Versión de demostración: los datos se guardan solo en este navegador' +
+  (sinAlmacenamiento ? ' <strong>(tu navegador no permite guardarlos: se pierden al cerrar la página)</strong>' : '') + '.</p>';
+
+const cabecera = (titulo, sub, botones) =>
+  '<header class="top"><div><h1>' + titulo + '</h1><p>' + sub + '</p></div><div>' + botones + '</div></header>';
+
+const optMesa = m => '<option value="' + h(m.id_mesa) + '">' + h((m.materia || 'Sin materia') + ' — ' + m.fecha + ' ' + hora(m.horario)) + '</option>';
+
+/* ------------------------------ vistas ------------------------------ */
+
+function vistaAlumno() {
+  const f = tomarFlash();
+  document.title = 'SIGEM | Portal de alumnos';
+  if (!ses || ses.tipo !== 'alumno') {
+    return '<header class="top centro"><h1>SIGEM</h1><p>Sistema Integral de Gestión de Mesas de Examen</p></header>' +
+      '<main class="wrap"><section class="card box" style="margin:35px auto"><h2>Ingreso de alumnos</h2>' +
+      '<p class="muted">Ingresá con tu nombre completo (tal como fue cargado por preceptoría) y tu DNI.</p>' +
+      (f.err ? '<p class="err" role="alert">' + h(f.err) + '</p>' : '') +
+      '<form data-form="login_alumno"><label>Nombre completo<input name="usuario" maxlength="150" autocomplete="username" required></label>' +
+      '<label>DNI<input name="password" type="password" inputmode="numeric" autocomplete="current-password" required></label>' +
+      '<button type="submit">Iniciar sesión</button></form>' +
+      '<nav class="accesos"><a class="btn" href="#/docente" style="width:auto;margin:0">Ingreso de docentes</a><a class="btn" href="#/preceptor" style="width:auto;margin:0">Ingreso de preceptores</a></nav>' +
+      '<details class="prueba"><summary>Cuentas de prueba (datos de ejemplo)</summary>' +
+      '<div>Alumna: <code>Ana Pérez</code> · DNI <code>50000001</code></div>' +
+      '<div>Docente: <code>Camila Torres</code> · contraseña <code>28000105</code></div>' +
+      '<div>Preceptora: <code>Lucía Fernández</code> · contraseña <code>39000101</code></div></details>' +
+      '</section></main>' + pie();
+  }
+  const alumno = alumnoPorId(ses.id_alumno);
+  const mesas = alumno ? db.inscripcion.filter(i => i.id_alumno === alumno.id_alumno)
+    .map(i => Object.assign(vistaMesa(mesaPorId(i.id_mesa)), { estado: i.estado })).sort(porFecha) : [];
+  return '<header class="top centro"><h1>SIGEM</h1><p>Sistema Integral de Gestión de Mesas de Examen</p></header><main class="wrap">' +
+    '<section class="card"><h2>¡Bienvenido/a, ' + h(ses.nombre) + '!</h2>' +
+    '<p>Ingresaste al portal de alumnos. Desde aquí podés consultar únicamente las mesas de examen en las que estás inscripto y ver tu comprobante. Si necesitás inscribirte a otra mesa, consultá con preceptoría.</p>' +
+    '<button type="button" data-action="salir">Cerrar sesión</button></section>' +
+    '<section class="card"><h2>Mis inscripciones</h2>' +
+    (!mesas.length ? '<p class="muted">No estás inscripto en ninguna mesa de examen por el momento.</p>' :
+      tabla(['Materia','Fecha','Horario','Aula','Docente','Estado','Comprobante'],
+        mesas.map(m => fila(h(m.materia), h(m.fecha), h(hora(m.horario)), h(m.aula), h(m.docente), h(m.estado || 'Inscripto'),
+          '<a href="#/comprobante/' + h(m.id_mesa) + '">Ver comprobante</a>')))) +
+    '</section></main>' + pie();
+}
+
+function vistaLoginDocente(f) {
+  document.title = 'SIGEM | Docentes';
+  return '<div class="box"><h1>SIGEM</h1><h2>Portal del Docente</h2><p>Ingresá con la cuenta asignada por administración.</p>' +
+    (f.err ? '<p class="err" role="alert">' + h(f.err) + '</p>' : '') +
+    '<form data-form="login_docente"><label>Usuario<input name="usuario" required autocomplete="username"></label>' +
+    '<label>Contraseña<input type="password" name="password" required autocomplete="current-password"></label><button>Ingresar</button></form>' +
+    '<a class="btn" href="#/">Volver al portal principal</a></div>' + pie();
+}
+
+function vistaDocente(q) {
+  const f = tomarFlash();
+  if (!ses || ses.tipo !== 'docente') return vistaLoginDocente(f);
+  document.title = 'SIGEM | Panel docente';
+  const idMesa = parseInt(q.get('mesa'), 10) || 0;
+  const verIngresos = idMesa > 0 && q.has('ingresos');
+  const mesas = db.mesa.filter(m => m.id_docente === ses.id_docente).map(vistaMesa).sort(porFecha);
+  const propia = mesas.find(m => m.id_mesa === idMesa);
+  const alumnos = propia ? db.inscripcion.filter(i => i.id_mesa === idMesa).map(i => ({ al: alumnoPorId(i.id_alumno), nota: notaDe(i.id_inscripcion) }))
+    .filter(x => x.al).sort((a, b) => es(a.al.apellido + a.al.nombre, b.al.apellido + b.al.nombre)) : [];
+
+  let html = cabecera('SIGEM · Portal del Docente', 'Hola, ' + h(ses.nombre), '<button type="button" data-action="salir">Cerrar sesión</button>') + '<main class="wrap">' + avisos(f);
+
+  html += '<section class="card"><h2>Mis mesas de examen</h2><form data-form="docente_mesa"><label for="mesa">Seleccioná una mesa asignada:</label>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><select id="mesa" name="mesa" required style="width:auto;min-width:260px"><option value="">Elegir mesa...</option>' +
+    mesas.map(m => '<option value="' + h(m.id_mesa) + '"' + (m.id_mesa === idMesa ? ' selected' : '') + '>' + h((m.materia || 'Sin materia') + ' — ' + m.fecha + ' ' + hora(m.horario)) + '</option>').join('') +
+    '</select><button>Consultar alumnos</button></div></form>' +
+    (idMesa > 0 ? '<p style="margin-top:14px"><a class="btn" href="#/acta/' + idMesa + '">Imprimir acta de esta mesa</a> <a class="btn" href="#/docente?mesa=' + idMesa + '&ingresos=1">Ver registro de ingresos de alumnos</a></p>' : '') +
+    (!mesas.length ? '<p>No tenés mesas asignadas. Solicitá a preceptoría que te asigne como docente en una mesa.</p>' : '') + '</section>';
+
+  if (idMesa > 0) {
+    html += '<section class="card"><h2>Registro de notas</h2><p>Ingresá una nota de 1 a 10 para cada alumno inscripto. Dejá en blanco las notas pendientes.</p>' +
+      '<form data-form="guardar_notas"><input type="hidden" name="id_mesa" value="' + h(idMesa) + '">' +
+      tabla(['DNI','Apellido y nombre','Nota (1 a 10)','Resultado'],
+        alumnos.map(x => fila(h(x.al.dni), h(x.al.apellido + ', ' + x.al.nombre),
+          '<input class="nota" type="number" name="nota_' + h(x.al.id_alumno) + '" min="1" max="10" step="0.01" value="' + (x.nota == null ? '' : h(nota2(x.nota))) + '">',
+          h(resultado(x.nota)))),
+        'No hay alumnos inscriptos en esta mesa, o la mesa no pertenece a tu usuario.') +
+      '<p><button type="submit">Guardar notas</button></p></form></section>';
+  }
+
+  if (verIngresos) {
+    const filas = propia ? [...new Set(db.inscripcion.filter(i => i.id_mesa === idMesa).map(i => i.id_alumno))]
+      .map(alumnoPorId).filter(Boolean).sort((a, b) => es(a.apellido + a.nombre, b.apellido + b.nombre)).map(al => {
+        const ids = cuentasDe(al).map(u => u.id_usuario);
+        const regs = db.registro.filter(r => ids.includes(r.id_usuario)).map(r => r.fecha_hora).sort().reverse();
+        return { al, n: regs.length, ultimo: regs[0] || null, fechas: regs.slice(0, 20) };
+      }) : [];
+    const total = filas.reduce((s, x) => s + x.n, 0);
+    html += '<section class="card" id="ingresos"><h2>Registro de ingresos de los alumnos</h2>' +
+      '<p class="muted">Cantidad de veces que cada alumno inscripto en esta mesa inició sesión en el portal de alumnos, donde consulta sus mesas de examen. El registro no distingue qué mesa miró en cada ingreso.</p>' +
+      (!filas.length ? '<p>No hay alumnos inscriptos en esta mesa, o la mesa no pertenece a tu usuario.</p>' :
+        '<p><strong>Total de ingresos de los alumnos de esta mesa:</strong> ' + total + '</p>' +
+        tabla(['DNI','Apellido y nombre','Cantidad de ingresos','Último ingreso','Fechas'],
+          filas.map(x => fila(h(x.al.dni), h(x.al.apellido + ', ' + x.al.nombre), '<strong>' + x.n + '</strong>',
+            x.ultimo ? h(fmtDT(x.ultimo)) : 'Nunca ingresó',
+            x.fechas.length ? '<details><summary>Ver ' + x.fechas.length + (x.n > x.fechas.length ? ' (de ' + x.n + ')' : '') + '</summary>' + x.fechas.map(d => '<div>' + h(fmtDT(d)) + '</div>').join('') + '</details>' : '—')))) +
+      '<p><a href="#/docente?mesa=' + idMesa + '">Ocultar registro</a></p></section>';
+  }
+  return html + '<p style="text-align:center"><a href="#/">Volver al portal principal</a></p></main>' + pie();
+}
+
+function vistaLoginPreceptor(f) {
+  document.title = 'SIGEM | Acceso de preceptores';
+  return '<div class="box"><h1>SIGEM</h1><h2>Ingreso de preceptores</h2><p>Acceso exclusivo para personal de preceptoría.</p>' +
+    (f.err ? '<p class="err" role="alert">' + h(f.err) + '</p>' : '') +
+    '<form data-form="login_preceptor"><label>Usuario<input name="usuario" required autocomplete="username"></label>' +
+    '<label>Contraseña<input type="password" name="password" required autocomplete="current-password"></label><button>Ingresar al panel</button></form>' +
+    '<a class="btn" href="#/">Volver al portal de alumnos</a></div>' + pie();
+}
+
+function vistaPreceptor() {
+  const f = tomarFlash();
+  if (!ses || ses.tipo !== 'preceptor') return vistaLoginPreceptor(f);
+  document.title = 'SIGEM | Panel de preceptoría';
+  const alumnos = db.alumno.slice().sort((a, b) => es(a.apellido + a.nombre, b.apellido + b.nombre));
+  const docentes = db.docente.slice().sort((a, b) => es(a.apellido + a.nombre, b.apellido + b.nombre));
+  const materias = db.materia.slice().sort((a, b) => es(a.nombre, b.nombre));
+  const aulas = db.aula.slice().sort((a, b) => es(a.numero, b.numero));
+  const mesas = db.mesa.map(vistaMesa).sort(porFecha);
+  const nd = docentes.length;
+
+  let html = cabecera('SIGEM · Preceptoría', 'Sesión iniciada: ' + h(ses.nombre), '<button type="button" data-action="salir">Cerrar sesión</button>') + '<div class="wrap">' + avisos(f);
+
+  html += '<section class="card"><h2>Registrar alumno</h2><p class="muted">Al guardar al alumno, se crea automáticamente su usuario de acceso. Usuario = nombre y apellido; contraseña inicial = DNI.</p>' +
+    '<form class="grid" data-form="crear_alumno"><label>Nombre<input name="nombre" maxlength="50" required></label><label>Apellido<input name="apellido" maxlength="50" required></label>' +
+    '<label>DNI<input name="dni" maxlength="20" required></label><label>Curso<input name="curso" maxlength="30"></label><button>Guardar alumno y crear usuario</button></form></section>';
+
+  html += '<section class="card"><h2>Docentes</h2><p class="muted">Hay ' + nd + ' docente' + (nd === 1 ? '' : 's') + ' registrado' + (nd === 1 ? '' : 's') +
+    '. Desde la gestión de docentes podés darlos de alta (con su cuenta de acceso) y eliminar los que se hayan cargado por error.</p><a class="btn" href="#/preceptor/docentes">Gestionar docentes</a></section>';
+
+  html += '<section class="card"><h2>Crear mesa de examen</h2><form class="grid" data-form="crear_mesa"><label>Fecha<input type="date" name="fecha" required></label><label>Horario<input type="time" name="horario" required></label>' +
+    '<label>Materia<select name="id_materia" required><option value="">Elegir materia...</option>' + materias.map(m => '<option value="' + h(m.id_materia) + '">' + h(m.nombre) + '</option>').join('') + '</select></label>' +
+    '<label>Docente<select name="id_docente"><option value="">Sin asignar</option>' + docentes.map(d => '<option value="' + h(d.id_docente) + '">' + h(d.apellido + ', ' + d.nombre) + '</option>').join('') + '</select></label>' +
+    '<label>Aula<select name="id_aula"><option value="">Sin asignar</option>' + aulas.map(a => '<option value="' + h(a.id_aula) + '">' + h(a.numero) + '</option>').join('') + '</select></label><button>Crear mesa</button></form>' +
+    (mesas.length ? '<h3>Mesas creadas</h3>' + tabla(['Materia','Fecha','Horario','Aula','Docente'], mesas.map(m => fila(h(m.materia), h(m.fecha), h(hora(m.horario)), h(m.aula), h(m.docente)))) : '') + '</section>';
+
+  html += '<section class="card"><h2>Inscribir alumno en una mesa</h2><form class="grid" data-form="crear_inscripcion">' +
+    '<label>Alumno<select name="id_alumno" required><option value="">Elegir alumno...</option>' + alumnos.map(a => '<option value="' + h(a.id_alumno) + '">' + h(a.apellido + ', ' + a.nombre + ' — DNI ' + a.dni) + '</option>').join('') + '</select></label>' +
+    '<label>Mesa<select name="id_mesa" required><option value="">Elegir mesa...</option>' + mesas.map(optMesa).join('') + '</select></label>' +
+    '<label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="excepcion" value="1"> Autorizar como excepción (si no cumple correlativas)</label><button>Inscribir alumno</button></form></section>';
+
+  html += '<section class="card"><h2>Alumnos registrados</h2><p class="muted">Hacé clic en el nombre de un alumno para eliminarlo si se cargó con datos erróneos.</p>' +
+    (!alumnos.length ? '<p class="muted">Todavía no hay alumnos cargados.</p>' :
+      tabla(['Apellido y nombre','DNI','Curso'], alumnos.map(a => {
+        const ni = db.inscripcion.filter(i => i.id_alumno === a.id_alumno);
+        const nn = db.nota.filter(n => ni.some(i => i.id_inscripcion === n.id_inscripcion)).length;
+        const detalle = 'DNI ' + a.dni + '. Se borrarán también su usuario de acceso y su historial de ingresos' +
+          (ni.length ? ', ' + ni.length + (ni.length === 1 ? ' inscripción' : ' inscripciones') : '') +
+          (nn ? ' y ' + nn + (nn === 1 ? ' nota cargada' : ' notas cargadas') : '') + '.';
+        return fila('<button type="button" class="nombre-link" data-eliminar data-tipo="alumno" data-id="' + h(a.id_alumno) + '" data-nombre="' + h(a.apellido + ', ' + a.nombre) + '" data-detalle="' + h(detalle) + '">' + h(a.apellido + ', ' + a.nombre) + '</button>', h(a.dni), h(a.curso));
+      }))) + '</section>';
+
+  html += '<section class="card"><h2>Copia de seguridad</h2><p class="muted">Los datos viven solo en este navegador. Descargá una copia para guardarlos o para llevarlos a otra computadora, y cargala allá.</p>' +
+    '<p><button type="button" data-action="exportar">Descargar copia de los datos</button> ' +
+    '<label class="btn" style="display:inline-block;cursor:pointer">Cargar una copia<input type="file" accept="application/json,.json" data-importar style="display:none"></label> ' +
+    '<button type="button" class="gris" data-action="reset">Restablecer datos de ejemplo</button></p></section>';
+
+  return html + '</div>' + pie();
+}
+
+function vistaPreceptorDocentes() {
+  const f = tomarFlash();
+  if (!ses || ses.tipo !== 'preceptor') return vistaLoginPreceptor(f);
+  document.title = 'SIGEM | Gestión de docentes';
+  const docentes = db.docente.slice().sort((a, b) => es(a.apellido + a.nombre, b.apellido + b.nombre));
+  let html = cabecera('SIGEM · Gestión de docentes', 'Sesión iniciada: ' + h(ses.nombre),
+    '<a class="btn" href="#/preceptor">Volver al panel de preceptoría</a> <button type="button" data-action="salir">Cerrar sesión</button>') + '<div class="wrap">' + avisos(f);
+  html += '<section class="card"><h2>Registrar docente</h2><p class="muted">Al guardar, se crea también su cuenta de acceso al portal docente. Usuario = nombre y apellido; contraseña inicial = DNI.</p>' +
+    '<form class="grid" data-form="crear_docente"><label>Nombre<input name="nombre" maxlength="50" required></label><label>Apellido<input name="apellido" maxlength="50" required></label>' +
+    '<label>DNI (solo números)<input name="dni" maxlength="12" inputmode="numeric" pattern="[0-9]{6,12}" title="Entre 6 y 12 dígitos, solo números" required></label><button>Guardar docente</button></form></section>';
+  html += '<section class="card"><h2>Docentes registrados</h2><p class="muted">Hacé clic en el nombre de un docente para eliminarlo si se cargó con datos erróneos. Sus mesas no se borran: quedan sin docente asignado.</p>' +
+    (!docentes.length ? '<p class="muted">Todavía no hay docentes cargados.</p>' :
+      tabla(['Apellido y nombre','DNI','Usuario de acceso','Mesas asignadas'], docentes.map(d => {
+        const acc = db.acceso_docente.find(x => x.id_docente === d.id_docente);
+        const nm = db.mesa.filter(m => m.id_docente === d.id_docente).length;
+        const detalle = 'DNI ' + d.dni + '. Se eliminará también su cuenta de acceso' + (acc ? ' (' + acc.usuario + ')' : '') + '.' +
+          (nm > 0 ? ' ' + nm + (nm === 1 ? ' mesa quedará' : ' mesas quedarán') + ' sin docente asignado.' : '');
+        return fila('<button type="button" class="nombre-link" data-eliminar data-tipo="docente" data-id="' + h(d.id_docente) + '" data-nombre="' + h(d.apellido + ', ' + d.nombre) + '" data-detalle="' + h(detalle) + '">' + h(d.apellido + ', ' + d.nombre) + '</button>',
+          h(d.dni),
+          acc ? h(acc.usuario) : '<span style="color:#9b1c1c">Sin cuenta</span> <button type="button" data-action="crear_acceso" data-id="' + h(d.id_docente) + '" style="padding:6px 10px;font-size:13px">Crear acceso</button>',
+          String(nm));
+      }))) + '</section>';
+  return html + '</div>' + pie();
+}
+
+function vistaComprobante(idMesa) {
+  document.title = 'Comprobante individual de inscripción';
+  const aviso = t => '<div class="box"><h2>' + h(t) + '</h2><a class="btn" href="#/">Volver al portal de alumnos</a></div>';
+  if (!ses || ses.tipo !== 'alumno') return aviso('Debés iniciar sesión como alumno para ver este documento.');
+  const al = alumnoPorId(ses.id_alumno);
+  if (!al) return aviso('No se encontró el registro del alumno. Consultá con preceptoría.');
+  const insc = db.inscripcion.find(i => i.id_alumno === al.id_alumno && i.id_mesa === idMesa);
+  if (!insc) return aviso('No estás inscripto en esa mesa.');
+  const m = vistaMesa(mesaPorId(idMesa)), n = notaDe(insc.id_inscripcion);
+  return '<main class="paper"><div class="top"><h1>SIGEM</h1><h2>Comprobante individual de inscripción a mesa de examen</h2></div><div class="details">' +
+    [['Alumno/a', al.apellido + ', ' + al.nombre], ['DNI', al.dni], ['Curso', al.curso || '—'], ['Materia', m.materia || '—'], ['Fecha', m.fecha], ['Horario', hora(m.horario)],
+     ['Aula', m.aula || 'A confirmar'], ['Docente', m.docente || 'A confirmar'], ['Fecha de inscripción', insc.fecha_inscripcion || '—'], ['Estado', insc.estado || 'Inscripto'],
+     ['Nota', n == null ? 'Pendiente' : nota2(n)]].map(x => '<div class="row"><strong>' + h(x[0]) + ':</strong> ' + h(x[1]) + '</div>').join('') +
+    '<div class="row"><strong>Resultado:</strong> <span class="result">' + h(resultado(n)) + '</span></div></div>' +
+    '<p>Este comprobante corresponde únicamente a la inscripción del alumno y a la mesa indicada.</p>' +
+    '<div class="signatures"><div>Firma de preceptoría</div><div>Firma del alumno/a</div></div></main>' +
+    '<div class="acciones no-print"><button type="button" data-action="imprimir">Imprimir solo este documento</button><a class="btn" href="#/">Volver</a></div>';
+}
+
+function vistaActa(idMesa) {
+  document.title = 'Acta de examen - Mesa ' + idMesa;
+  const aviso = t => '<div class="box"><h2>' + h(t) + '</h2><a class="btn" href="#/docente">Volver al panel docente</a></div>';
+  if (!ses || ses.tipo !== 'docente') return aviso('Debés iniciar sesión como docente.');
+  const base = mesaPorId(idMesa);
+  if (!base || base.id_docente !== ses.id_docente) return aviso('La mesa no existe o no está asignada a tu usuario.');
+  const m = vistaMesa(base);
+  const al = db.inscripcion.filter(i => i.id_mesa === idMesa).map(i => ({ a: alumnoPorId(i.id_alumno), n: notaDe(i.id_inscripcion) }))
+    .filter(x => x.a).sort((x, y) => es(x.a.apellido + x.a.nombre, y.a.apellido + y.a.nombre));
+  return '<main class="paper acta"><div class="top"><h1>SIGEM</h1><h2>Acta de examen</h2></div><div class="gridd">' +
+    [['N.º de mesa', m.id_mesa], ['Materia / mesa', m.materia || 'Sin materia'], ['Fecha', m.fecha], ['Horario', hora(m.horario)], ['Aula', m.aula || 'A confirmar'], ['Docente', m.docente || 'Sin asignar']]
+      .map(x => '<div><strong>' + h(x[0]) + ':</strong> ' + h(x[1]) + '</div>').join('') + '</div>' +
+    '<h3>Alumnos inscriptos en esta mesa (' + al.length + ')</h3>' +
+    tabla(['N.º','DNI','Apellido y nombre','Nota','Firma / observaciones'], al.map((x, i) => '<tr><td>' + (i + 1) + '</td><td>' + h(x.a.dni) + '</td><td>' + h(x.a.apellido + ', ' + x.a.nombre) + '</td><td>' + (x.n == null ? '' : h(nota2(x.n))) + '</td><td style="height:32px"></td></tr>'), 'No hay alumnos inscriptos en esta mesa.') +
+    '<p style="margin-top:28px">Observaciones: __________________________________________________________________________________</p>' +
+    '<p style="margin-top:45px;text-align:right">Firma del docente: ____________________________________</p></main>' +
+    '<div class="acciones no-print"><button type="button" data-action="imprimir">Imprimir solo el acta de esta mesa</button><a class="btn" href="#/docente?mesa=' + idMesa + '">Volver</a></div>';
+}
+
+/* ------------------------------ ruteo ------------------------------- */
+function ruta() {
+  let x = location.hash.replace(/^#/, '') || '/';
+  let q = new URLSearchParams('');
+  const i = x.indexOf('?');
+  if (i >= 0) { q = new URLSearchParams(x.slice(i + 1)); x = x.slice(0, i); }
+  return { path: x.replace(/\/+$/, '') || '/', q };
+}
+
+function render() {
+  const app = document.getElementById('app');
+  let hayIngresos = false;
+  try {
+    const r = ruta();
+    let m;
+    if (r.path === '/docente') { app.innerHTML = vistaDocente(r.q); hayIngresos = r.q.has('ingresos'); }
+    else if (r.path === '/preceptor') app.innerHTML = vistaPreceptor();
+    else if (r.path === '/preceptor/docentes') app.innerHTML = vistaPreceptorDocentes();
+    else if ((m = /^\/comprobante\/(\d+)$/.exec(r.path))) app.innerHTML = vistaComprobante(parseInt(m[1], 10));
+    else if ((m = /^\/acta\/(\d+)$/.exec(r.path))) app.innerHTML = vistaActa(parseInt(m[1], 10));
+    else app.innerHTML = vistaAlumno();
+  } catch (e) {
+    console.error(e);
+    app.innerHTML = '<div class="box"><h2>Ocurrió un error inesperado</h2><p class="muted">' + h(e.message) + '</p><a class="btn" href="#/">Volver al inicio</a></div>';
+  }
+  if (hayIngresos) { const el = document.getElementById('ingresos'); if (el && el.scrollIntoView) el.scrollIntoView(); }
+}
+function ir(hash) { if (location.hash === hash) render(); else location.hash = hash; }
+
+/* ---------------------------- acciones ------------------------------ */
+const campo = (fd, n) => String(fd.get(n) == null ? '' : fd.get(n)).trim();
+
+function intentar(fn) {
+  try { fn(); }
+  catch (e) {
+    if (e instanceof Falla) flash.err = e.message;
+    else { console.error(e); flash.err = 'No se pudo completar la acción. Intentá de nuevo.'; }
+  }
+  render();
+}
+
+function requerir(tipo) {
+  if (!ses || ses.tipo !== tipo) throw new Falla('Tu sesión venció. Volvé a ingresar.');
+}
+
+const formularios = {
+  login_alumno(fd) {
+    const usuario = norm(campo(fd, 'usuario')), dni = campo(fd, 'password');
+    let cuenta = db.usuarios.find(u => norm(u.usuario) === usuario);
+    let valida = false;
+    if (cuenta) valida = cuenta.pass === hashClave(dni);
+    else {
+      // Alumno cargado sin cuenta: si nombre completo + DNI coinciden, se crea su cuenta.
+      const al = db.alumno.find(a => norm(nombreAlumno(a)) === usuario);
+      if (al && String(al.dni).trim() === dni) {
+        cuenta = insertar('usuarios', { nombre: nombreAlumno(al), usuario: nombreAlumno(al), pass: hashClave(dni) });
+        valida = true;
+      }
+    }
+    if (!valida) { flash.err = 'Nombre de usuario o DNI incorrectos. Si recién te registraron, consultá con preceptoría.'; return render(); }
+    const al = db.alumno.find(a => norm(nombreAlumno(a)) === norm(cuenta.nombre));
+    setSes({ tipo: 'alumno', id_usuario: cuenta.id_usuario, id_alumno: al ? al.id_alumno : 0, nombre: cuenta.nombre });
+    insertar('registro', { id_usuario: cuenta.id_usuario, usuario: cuenta.usuario, fecha_hora: ahora() });
+    guardar();
+    ir('#/');
+  },
+
+  login_docente(fd) {
+    const acc = db.acceso_docente.find(a => norm(a.usuario) === norm(campo(fd, 'usuario')));
+    const d = acc && docentePorId(acc.id_docente);
+    if (acc && d && acc.pass === hashClave(String(fd.get('password') || ''))) {
+      setSes({ tipo: 'docente', id_docente: d.id_docente, nombre: d.nombre + ' ' + d.apellido });
+      return ir('#/docente');
+    }
+    flash.err = 'Usuario o contraseña incorrectos.';
+    render();
+  },
+
+  login_preceptor(fd) {
+    const p = db.preceptor.find(x => norm(x.usuario) === norm(campo(fd, 'usuario')));
+    if (p && p.pass === hashClave(String(fd.get('password') || ''))) {
+      setSes({ tipo: 'preceptor', id_preceptor: p.id_preceptor, nombre: p.nombre + ' ' + p.apellido });
+      return ir('#/preceptor');
+    }
+    flash.err = 'Usuario o contraseña de preceptor incorrectos.';
+    render();
+  },
+
+  docente_mesa(fd) { ir('#/docente?mesa=' + encodeURIComponent(campo(fd, 'mesa'))); },
+
+  guardar_notas(fd) {
+    intentar(() => {
+      requerir('docente');
+      const idMesa = parseInt(campo(fd, 'id_mesa'), 10) || 0;
+      const mesa = mesaPorId(idMesa);
+      if (!mesa || mesa.id_docente !== ses.id_docente) throw new Falla('Esa mesa no está asignada a tu usuario docente.');
+      const cambios = [];
+      db.inscripcion.filter(i => i.id_mesa === idMesa).forEach(i => {
+        const v = campo(fd, 'nota_' + i.id_alumno);
+        if (v === '') return;
+        const n = Number(v);
+        if (!isFinite(n) || n < 1 || n > 10) throw new Falla('Las notas deben ser números entre 1 y 10.');
+        cambios.push([i.id_inscripcion, Math.round(n * 100) / 100]);
+      });
+      // Se validó todo antes de tocar los datos: se guardan todas las notas o ninguna.
+      cambios.forEach(([idInsc, n]) => {
+        const ex = db.nota.find(x => x.id_inscripcion === idInsc);
+        if (ex) { ex.calificacion = n; ex.fecha = hoy(); }
+        else insertar('nota', { calificacion: n, fecha: hoy(), id_inscripcion: idInsc });
+      });
+      guardar();
+      flash.ok = 'Notas guardadas correctamente.';
+    });
+  },
+
+  crear_alumno(fd) {
+    intentar(() => {
+      requerir('preceptor');
+      const nombre = campo(fd, 'nombre'), apellido = campo(fd, 'apellido'), dni = campo(fd, 'dni'), curso = campo(fd, 'curso');
+      if (!nombre || !apellido || !dni) throw new Falla('Completá nombre, apellido y DNI del alumno.');
+      const completo = nombre + ' ' + apellido;
+      if (db.alumno.some(a => String(a.dni).trim() === dni) || db.usuarios.some(u => norm(u.usuario) === norm(completo)))
+        throw new Falla('El DNI, el nombre de usuario o la inscripción ya existe. Revisá los datos.');
+      insertar('alumno', { nombre, apellido, dni, curso: curso || null });
+      insertar('usuarios', { nombre: completo, usuario: completo, pass: hashClave(dni) });
+      guardar();
+      flash.ok = 'Alumno registrado y usuario creado. Usuario: ' + completo + ' | Contraseña inicial: DNI.';
+    });
+  },
+
+  crear_mesa(fd) {
+    intentar(() => {
+      requerir('preceptor');
+      const fecha = campo(fd, 'fecha'), horario = campo(fd, 'horario');
+      const materia = parseInt(campo(fd, 'id_materia'), 10) || 0;
+      if (!fecha || !horario || materia <= 0) throw new Falla('Completá fecha, horario y materia para crear la mesa.');
+      insertar('mesa', { fecha, horario: horario.length === 5 ? horario + ':00' : horario,
+        id_aula: parseInt(campo(fd, 'id_aula'), 10) || null, id_docente: parseInt(campo(fd, 'id_docente'), 10) || null, id_materia: materia });
+      guardar();
+      flash.ok = 'Mesa de examen creada correctamente.';
+    });
+  },
+
+  crear_inscripcion(fd) {
+    intentar(() => {
+      requerir('preceptor');
+      const idAlumno = parseInt(campo(fd, 'id_alumno'), 10) || 0, idMesa = parseInt(campo(fd, 'id_mesa'), 10) || 0;
+      if (idAlumno <= 0 || idMesa <= 0) throw new Falla('Seleccioná un alumno y una mesa.');
+      const excepcion = !!fd.get('excepcion');
+      const mesa = mesaPorId(idMesa);
+      if (!mesa || !alumnoPorId(idAlumno)) throw new Falla('La mesa elegida no existe.');
+      if (db.inscripcion.some(i => i.id_alumno === idAlumno && i.id_mesa === idMesa)) throw new Falla('Ese alumno ya está inscripto en esa mesa.');
+      const pend = correlativasPendientes(idAlumno, mesa.id_materia);
+      if (pend.length && !excepcion)
+        throw new Falla('El alumno no cumple las correlativas. Le falta aprobar: ' + pend.join(', ') + '. Si es un caso excepcional, marcá "Autorizar como excepción" y volvé a inscribirlo.');
+      insertar('inscripcion', { fecha_inscripcion: hoy(), estado: pend.length ? 'Excepción' : 'Inscripto', id_alumno: idAlumno, id_mesa: idMesa });
+      guardar();
+      flash.ok = pend.length ? 'Alumno inscripto por EXCEPCIÓN (correlativas pendientes: ' + pend.join(', ') + ').' : 'Alumno inscripto en la mesa correctamente.';
+    });
+  },
+
+  crear_docente(fd) {
+    intentar(() => {
+      requerir('preceptor');
+      const nombre = campo(fd, 'nombre'), apellido = campo(fd, 'apellido'), dni = campo(fd, 'dni');
+      if (!nombre || !apellido || !dni) throw new Falla('Completá nombre, apellido y DNI del docente.');
+      if (!/^[0-9]{6,12}$/.test(dni)) throw new Falla('El DNI debe tener solo números (entre 6 y 12 dígitos).');
+      const usuario = nombre + ' ' + apellido;
+      if (db.docente.some(d => String(d.dni) === dni)) throw new Falla('Ya existe un docente con ese DNI.');
+      if (db.acceso_docente.some(a => norm(a.usuario) === norm(usuario)))
+        throw new Falla('Ya existe una cuenta con el usuario "' + usuario + '". Si es otro docente con el mismo nombre, agregá un segundo nombre o inicial para distinguirlo.');
+      const d = insertar('docente', { nombre, apellido, dni });
+      insertar('acceso_docente', { id_docente: d.id_docente, usuario, pass: hashClave(dni) });
+      guardar();
+      flash.ok = 'Docente registrado. Usuario: ' + usuario + ' | Contraseña inicial: su DNI.';
+    });
+  }
+};
+
+let pendienteEliminar = null;
+
+const clics = {
+  salir() {
+    const tipo = ses && ses.tipo;
+    setSes(null);
+    ir(tipo === 'docente' ? '#/docente' : tipo === 'preceptor' ? '#/preceptor' : '#/');
+  },
+  imprimir() { window.print(); },
+  crear_acceso(btn) {
+    intentar(() => {
+      requerir('preceptor');
+      const id = parseInt(btn.dataset.id, 10);
+      const d = docentePorId(id);
+      if (!d) throw new Falla('El docente ya no existe. Recargá la página.');
+      if (db.acceso_docente.some(a => a.id_docente === id)) throw new Falla('Ese docente ya tiene cuenta de acceso.');
+      const usuario = (d.nombre + ' ' + d.apellido).trim();
+      if (db.acceso_docente.some(a => norm(a.usuario) === norm(usuario)))
+        throw new Falla('Ya existe una cuenta con el usuario "' + usuario + '". Eliminá el registro duplicado o cargá al docente con un nombre distinto.');
+      insertar('acceso_docente', { id_docente: id, usuario, pass: hashClave(String(d.dni)) });
+      guardar();
+      flash.ok = 'Cuenta creada. Usuario: ' + usuario + ' | Contraseña inicial: su DNI.';
+    });
+  },
+  exportar() {
+    const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'sigem-datos-' + hoy() + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  },
+  reset() {
+    if (!confirm('Se borrarán todos los datos cargados y se restablecerán los de ejemplo. ¿Continuar?')) return;
+    db = crearDatosDeEjemplo(); guardar(); setSes(null);
+    flash.ok = 'Datos de ejemplo restablecidos. Volvé a iniciar sesión.';
+    ir('#/preceptor');
+  }
+};
+
+/* ---------------------- eventos de la página ------------------------ */
+document.addEventListener('submit', e => {
+  const f = e.target.closest('form[data-form]');
+  if (!f || !formularios[f.dataset.form]) return;
+  e.preventDefault();
+  formularios[f.dataset.form](new FormData(f), f);
+});
+
+document.addEventListener('click', e => {
+  const del = e.target.closest('[data-eliminar]');
+  if (del) {
+    pendienteEliminar = { tipo: del.dataset.tipo, id: parseInt(del.dataset.id, 10) };
+    const dlg = document.getElementById('dlg');
+    document.getElementById('dlg-titulo').textContent = '¿Eliminar a ' + del.dataset.nombre + '?';
+    document.getElementById('dlg-detalle').textContent = del.dataset.detalle;
+    if (typeof dlg.showModal === 'function') dlg.showModal();
+    else if (confirm('¿Eliminar a ' + del.dataset.nombre + '? Esta acción no se puede deshacer.')) confirmarEliminar();
+    return;
+  }
+  const el = e.target.closest('[data-action]');
+  if (el && clics[el.dataset.action]) clics[el.dataset.action](el);
+});
+
+function confirmarEliminar() {
+  const p = pendienteEliminar; pendienteEliminar = null;
+  if (!p) return;
+  intentar(() => {
+    requerir('preceptor');
+    flash.ok = p.tipo === 'docente' ? borrarDocente(p.id) : borrarAlumno(p.id);
+    guardar();
+  });
+}
+document.getElementById('dlg-cancelar').addEventListener('click', () => { pendienteEliminar = null; document.getElementById('dlg').close(); });
+document.getElementById('dlg-ok').addEventListener('click', () => { document.getElementById('dlg').close(); confirmarEliminar(); });
+
+document.addEventListener('change', e => {
+  const inp = e.target.closest('input[data-importar]');
+  if (!inp || !inp.files || !inp.files[0]) return;
+  const lector = new FileReader();
+  lector.onload = () => {
+    try {
+      const x = JSON.parse(String(lector.result));
+      if (!datosValidos(x)) throw new Error('formato');
+      if (!confirm('Se reemplazarán los datos actuales por los de la copia. ¿Continuar?')) return;
+      db = x; guardar(); setSes(null);
+      flash.ok = 'Copia cargada correctamente. Volvé a iniciar sesión.';
+      ir('#/preceptor');
+    } catch (err) { flash.err = 'El archivo no es una copia válida de SIGEM.'; render(); }
+  };
+  lector.readAsText(inp.files[0]);
+});
+
+window.addEventListener('hashchange', render);
+cargar();
+render();
+})();
+</script>
+</body>
+</html>
