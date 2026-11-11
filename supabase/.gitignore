@@ -1,0 +1,6 @@
+.temp/
+.env
+.env.*
+!.env.example
+*.dump
+*.backup
